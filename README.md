@@ -15,3 +15,4 @@ This is a little side project. I am just trying to make all the controls of my r
 - ReefMCU Sensor - Add support for Conductivity Sensor, Ph Sensor and Ion-specific Calcium Sensor (Pro version).
 - ReefMCU Sensor - Add gerber file with support for the following: Temperature, Float Switch, Photoelectric Liquid Level Sensor, Conductivity Sensor and Ph Sensor.
 - Auto TopUp - More solid code for seperate unit not connected to smart plug. ie. Includes relay control for 12V pump, Photoelectric Liquid Level Sensor and Resevoir Level Detector (float switch or ultrasonic distance sensor).
+- ReefMCU Coral LED
