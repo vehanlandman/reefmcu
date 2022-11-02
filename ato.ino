@@ -1,73 +1,61 @@
-//A lot of redundant code in here. Needs work.
-
 #include <ESP8266WiFi.h>
-#include <ESP8266mDNS.h>
-#include <WiFiUdp.h>
-#include <ArduinoOTA.h>
 #include <PubSubClient.h>
 
 #define RelayPin 14
+#define LevelPin 13
 
 const char* ssid = "ssid";
 const char* password = "password";
-const char *mqtt_broker = "MQTT Broker";
+const char *mqtt_broker = "broker";
 const int mqtt_port = 1883;
 
-String messageValue;
 String resevoirlevel;
+String OldLevel;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-long lastMsg = 0;
-char msg[50];
-int value = 0;
-
 int Water_level=0;
-int FloatSwitch=1;
-int OldPump = 1;
+int OldPump;
+int TimeOn=0;
 
-void callback(char* topic, byte* message, unsigned int length) {
-  Serial.print("Message arrived on topic: ");
-  Serial.print(topic);
-  Serial.print(". Message: ");
-  
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)message[i]);
-    resevoirlevel += (char)message[i];
-  }
-  Serial.println();
- 
-  if (String(topic) == "vehan/muc/resevoir") {
-    Serial.print("Float Level = ");
-    if(resevoirlevel == "FULL"){
-      Serial.println("FULL");
-    }
-    else if(resevoirlevel == "EMPTY"){
-      Serial.println("EMPTY");
-    }
-  }
-}
-
-void pubdata(){
+void pumpcontrol(){
     if(OldPump != Water_level){
     
     OldPump = Water_level;
  
     if (Water_level ==0){
-    client.publish("aquarium1/atopump", "ON");
+      digitalWrite(RelayPin, HIGH);
+      client.publish("vehan/muc/atopump", "ON");
+      TimeOn = millis();
     } else if (Water_level ==1){
-    client.publish("aquarium1/atopump", "OFF");
+      digitalWrite(RelayPin, LOW);
+      client.publish("vehan/muc/atopump", "OFF");
+      TimeOn = 0;
     }
    }
+}
+
+void publevel(){
+    if(OldLevel != resevoirlevel){
+    
+    OldLevel = resevoirlevel;
+     
+    if (resevoirlevel == "EMPTY"){
+      digitalWrite(RelayPin, LOW);
+      client.publish("vehan/muc/resevoir", "EMPTY");
+    } else if (resevoirlevel == "FULL"){
+      client.publish("vehan/muc/resevoir", "FULL");
+    }
+  }
 }
 
 void reconnect(){
   while (!client.connected()) {
       digitalWrite(RelayPin, LOW);
-      String client_id = "ATOMCU";
+      String client_id = "MUC-Aquarium-Sensor";
       client_id += String(WiFi.macAddress());
-      Serial.printf("The client %s connects to the mqtt broker\n", client_id.c_str());
+      Serial.printf("The client %s connects to the public mqtt broker\n", client_id.c_str());
       if (client.connect(client_id.c_str())) {
           Serial.println("Mqtt broker connected");
       } else {
@@ -80,9 +68,8 @@ void reconnect(){
       delay(5000);
       ESP.restart();
       }
-      client.subscribe ("vehan/muc/resevoir");
-  }
-} 
+   }
+}
 
 
 void setup() {
@@ -99,36 +86,24 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
   client.setServer(mqtt_broker, mqtt_port);
-  client.setCallback(callback);
-  pinMode(13,INPUT);
-  pinMode(12, INPUT_PULLUP);
+  pinMode(LevelPin,INPUT);
+  pinMode(12, INPUT);
   pinMode(RelayPin, OUTPUT);
 }
 
 void loop() {
   client.loop();
   reconnect();
-  pubdata();
-
- long now = millis();
+  pumpcontrol();
+  publevel();
   
-if (now - lastMsg > 1000) {
-
-   lastMsg = now;
-   
-   Water_level=digitalRead(13);
-   Serial.print("Water_level= ");
-   Serial.println(Water_level,DEC);
-   FloatSwitch=digitalRead(12);
-   Serial.print("FloatSwitch= ");
-   Serial.println(FloatSwitch);
-    
-    if (Water_level ==0){
-    Serial.println ("PUMP ON");
-    digitalWrite(RelayPin, HIGH);
-    } else {
-    Serial.println ("PUMP OFF");
-    digitalWrite(RelayPin, LOW);
-    } 
-  }
-}
+  Water_level=digitalRead(LevelPin);
+  Serial.print("Water_level= ");
+  Serial.println(Water_level,DEC);
+  
+    if (millis() - TimeOn >= 1800000){
+      resevoirlevel= "EMPTY";
+    }else{
+      resevoirlevel= "FULL";
+    }
+ }
